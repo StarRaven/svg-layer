@@ -1,0 +1,17 @@
+<div class="right">
+  <mat-select [(ngModel)]="svgbox" (change)="changeSize()">
+    <mat-option value="small">small</mat-option>
+    <mat-option value="medium">medium</mat-option>
+    <mat-option value="big">big</mat-option>
+  </mat-select>
+  <mat-select [(ngModel)]="tool" (change)="resetMouse()">
+    <mat-option value="rect">Rectangle</mat-option>
+    <mat-option value="path">Path</mat-option>
+  </mat-select>
+</div>
+<div class="left">
+  <img class="bgimg" [style.width.px]="width" [style.height.px]="height" src="assets/background.jpg"/>
+  <div #wrapper class="svg" id="drawing"></div>
+</div>
+
+

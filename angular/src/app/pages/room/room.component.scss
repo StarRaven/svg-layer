@@ -1,0 +1,27 @@
+.right {
+  width: 200px;
+  float: right;
+  border: 1px solid black;
+  height: auto;
+  min-height: 800px;
+}
+
+.left {
+  width: auto;
+  border: 1px solid red;
+  margin-right: 200px;
+  height: auto;
+  min-height: 800px;
+}
+
+.bgimg {
+  position: absolute;
+  left: 400px;
+  top: 200px;
+}
+
+.svg {
+  position: absolute;
+  left: 400px;
+  top: 200px;
+}
