@@ -55,17 +55,18 @@ export class RoomComponent implements OnInit {
     this.socket.emit('room/leave');
   }
 
-  transformX(x:number):number {
-    let ratiox = this.width/this.widthViewbox;
-    return ((x-this.left)/ratiox+this.leftViewbox);
+  transformX(x: number): number {
+    let ratiox = this.width / this.widthViewbox;
+    return ((x - this.left) / ratiox + this.leftViewbox);
   }
-  transformY(y:number):number {
-    let ratioy = this.height/this.heightViewbox;
-    return ((y-this.top)/ratioy+this.topViewbox);
+
+  transformY(y: number): number {
+    let ratioy = this.height / this.heightViewbox;
+    return ((y - this.top) / ratioy + this.topViewbox);
   }
 
 
-  resetMouse(){
+  resetMouse() {
     this.mouseDown = false;
   }
 
@@ -109,8 +110,8 @@ export class RoomComponent implements OnInit {
           this.initLocalRect(this.transformX(event.clientX), this.transformY(event.clientY));
           this.socket.emit('drawing', {
             event: 'mouseDown',
-            startx: this.transformX(event.clientX),
-            starty: this.transformY(event.clientY),
+            startx: this.transformX(event.clientX) - this.leftViewbox,
+            starty: this.transformY(event.clientY) - this.topViewbox,
             type: 'rect'
           });
           break;
@@ -134,21 +135,21 @@ export class RoomComponent implements OnInit {
             switch (this.tool) {
               case 'rect':
                 var rect = this.rects[this.rects.length - 1];
-                this.rectsData[this.rectsData.length - 1].setNow(this.transformX(event.clientX), this.transformY(event.clientY));
                 var rectd = this.rectsData[this.rectsData.length - 1];
-                rect.move(rectd.getLTx(), rectd.getLTy());
+                this.rectsData[this.rectsData.length - 1].setNow(this.transformX(event.clientX) - this.leftViewbox, this.transformY(event.clientY) - this.topViewbox);
+                rect.move(rectd.getLTx() + this.leftViewbox, rectd.getLTy() + this.topViewbox);
                 rect.size(rectd.getWidth(), rectd.getHeight());
                 this.socket.emit('drawing', {
                   event: 'mouseMove',
                   startx: rectd.getStartx(),
                   starty: rectd.getStarty(),
-                  nowx: this.transformX(event.clientX),
-                  nowy: this.transformY(event.clientY),
+                  nowx: this.transformX(event.clientX) - this.leftViewbox,
+                  nowy: this.transformY(event.clientY) - this.topViewbox,
                   type: 'rect'
                 });
                 break;
               case 'path':
-                this.rawLinesData[this.rawLinesData.length - 1].push([this.transformX(event.clientX), this.transformY(event.clientY)]);
+                this.rawLinesData[this.rawLinesData.length - 1].push([this.transformX(event.clientX) - this.leftViewbox, this.transformY(event.clientY) - this.topViewbox]);
                 this.updateLines();
                 break;
             }
@@ -201,7 +202,7 @@ export class RoomComponent implements OnInit {
         if (lineData.length > 1) {
           this.fittedCurvesData[i] = fitCurve(lineData, 50);
           var str = this.fittedCurveDataToPathString(this.fittedCurvesData[i])
-          this.fittedCurves[i].plot(str);
+          this.fittedCurves[i].plot(str).dmove(this.leftViewbox, this.topViewbox);
           this.socket.emit('drawing', {
             event: 'mouseMove',
             data: str,
@@ -214,13 +215,14 @@ export class RoomComponent implements OnInit {
 
   updateRemotePath(pathString) {
     var i = this.fittedCurvesRemote.length - 1;
-    this.fittedCurvesRemote[i].plot(pathString);
+    this.fittedCurvesRemote[i].plot(pathString).dmove(this.leftViewbox, this.topViewbox);
   }
 
   updateRemoteRect(startx, starty, nowx, nowy) {
     var rect = this.rectsRemote[this.rectsRemote.length - 1];
     var rectd = new RectData(startx, starty, nowx, nowy);
-    rect.move(rectd.getLTx(), rectd.getLTy());
+    console.log(rectd);
+    rect.move(rectd.getLTx() + this.leftViewbox, rectd.getLTy() + this.topViewbox);
     rect.size(rectd.getWidth(), rectd.getHeight());
   }
 
@@ -232,12 +234,12 @@ export class RoomComponent implements OnInit {
       , 'stroke-width': 3
     });
     this.rects.push(rect);
-    var rectd = new RectData(startx, starty, startx, starty);
+    var rectd = new RectData(startx - this.leftViewbox, starty - this.topViewbox, startx - this.leftViewbox, starty - this.topViewbox);
     this.rectsData.push(rectd);
   }
 
   initRemoteRect(startx, starty) {
-    var rect = this.draw.rect(0, 0).move(startx, starty).attr({
+    var rect = this.draw.rect(0, 0).move(startx + this.leftViewbox, starty + this.topViewbox).attr({
       'fill': null
       , 'fill-opacity': 0
       , stroke: '#FFF250'
