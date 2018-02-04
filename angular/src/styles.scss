@@ -1,22 +1,35 @@
 /* You can add global styles to this file, and also import other style files */
+
 @import '~@angular/material/prebuilt-themes/pink-bluegrey.css';
+
+html {
+  height: 100%;
+}
 
 body {
   background-color: #333;
   color: #fff;
   font-family: 'Roboto', 'Open Sans', 'Lucida Grande', sans-serif;
-  height: 100%;
+  min-height: 100%;
   margin: 0;
   padding: 0;
   width: 100%;
 }
 
+app-root {
+  display: block;
+  height: 100%;
+}
+
 svg {
   border: 1px solid gray;
 }
-#container, #sidebar {
+
+#container,
+#sidebar {
   float: left;
 }
+
 #sidebar {
   padding-left: 15px;
   width: 300px;

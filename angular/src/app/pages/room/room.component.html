@@ -1,4 +1,5 @@
-<div class="right">
+
+<div class="left">
   <mat-select [(ngModel)]="svgbox" (change)="changeSize()">
     <mat-option value="small">small</mat-option>
     <mat-option value="medium">medium</mat-option>
@@ -9,9 +10,15 @@
     <mat-option value="path">Path</mat-option>
   </mat-select>
 </div>
+<!--
 <div class="left">
   <img class="bgimg" [style.width.px]="width" [style.height.px]="height" src="assets/background.jpg"/>
   <div #wrapper class="svg" id="drawing"></div>
 </div>
+-->
 
+<div class="right">
+  <img class="bgimg" src="assets/background.jpg"/>
+  <div #wrapper class="svg" id="drawing"></div>
+</div>
 

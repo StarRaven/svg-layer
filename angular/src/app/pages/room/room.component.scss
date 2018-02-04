@@ -1,27 +1,30 @@
-.right {
+.left {
+  float: left;
   width: 200px;
-  float: right;
-  border: 1px solid black;
-  height: auto;
-  min-height: 800px;
+  height: 100vh;
+  border: 1px solid red;
 }
 
-.left {
+.right {
+  position: relative;
   width: auto;
-  border: 1px solid red;
-  margin-right: 200px;
-  height: auto;
-  min-height: 800px;
+  height: 100vh;
+  margin-left: 200px;
+  border: 1px solid black;
 }
 
 .bgimg {
   position: absolute;
-  left: 400px;
-  top: 200px;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 100%;
 }
 
 .svg {
   position: absolute;
-  left: 400px;
-  top: 200px;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 100%;
 }

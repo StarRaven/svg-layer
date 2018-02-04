@@ -24,8 +24,8 @@ export class RoomComponent implements OnInit {
   svgbox: string = 'small';
   tool: string = 'rect';
 
-  width: number = 400;
-  height: number = 300;
+  width: number;
+  height: number;
   widthViewbox: number;
   heightViewbox: number;
 
@@ -57,14 +57,14 @@ export class RoomComponent implements OnInit {
 
   transformX(x: number): number {
     let ratiox = this.width / this.widthViewbox;
-    return ((x - this.left) / ratiox + this.leftViewbox);
+    return ((x - this.left) / ratiox);
   }
 
   transformY(y: number): number {
     let ratioy = this.height / this.heightViewbox;
-    return ((y - this.top) / ratioy + this.topViewbox);
+    return ((y - this.top) / ratioy);
   }
-
+//getComputedStyle().width
 
   resetMouse() {
     this.mouseDown = false;
@@ -100,7 +100,7 @@ export class RoomComponent implements OnInit {
     const wrapperNE = this.wrapperRef.nativeElement;
     const mouseDown$ = Observable.fromEvent<MouseEvent>(wrapperNE, 'mousedown');
     const mouseUp$ = Observable.fromEvent<MouseEvent>(wrapperNE, 'mouseup');
-    const mouseMove$ = Observable.fromEvent<MouseEvent>(wrapperNE, 'mousemove').bufferTime(100);
+    const mouseMove$ = Observable.fromEvent<MouseEvent>(wrapperNE, 'mousemove').bufferTime(10);
 
     //mouseDown
     mouseDown$.subscribe(event => {
@@ -136,7 +136,8 @@ export class RoomComponent implements OnInit {
               case 'rect':
                 var rect = this.rects[this.rects.length - 1];
                 var rectd = this.rectsData[this.rectsData.length - 1];
-                this.rectsData[this.rectsData.length - 1].setNow(this.transformX(event.clientX) - this.leftViewbox, this.transformY(event.clientY) - this.topViewbox);
+                //console.log(event.offsetX);
+                this.rectsData[this.rectsData.length - 1].setNow(this.transformX(event.offsetX), this.transformY(event.offsetY));
                 rect.move(rectd.getLTx() + this.leftViewbox, rectd.getLTy() + this.topViewbox);
                 rect.size(rectd.getWidth(), rectd.getHeight());
                 this.socket.emit('drawing', {
@@ -157,7 +158,7 @@ export class RoomComponent implements OnInit {
 
         },
         error: (err) => {
-          console.log('Error: ' + err);
+          console.error('Error: ' + err);
         },
         complete: () => {
           console.log('Complete');
@@ -307,13 +308,16 @@ export class RoomComponent implements OnInit {
   }
 
   initComponent() {
-    this.draw = SVG('drawing').size(this.width, this.height);
+    this.width = this.wrapperRef.nativeElement.scrollWidth;
+    this.height = this.wrapperRef.nativeElement.scrollHeight;
     this.left = this.wrapperRef.nativeElement.offsetLeft;
     this.top = this.wrapperRef.nativeElement.offsetTop;
 
-    this.draw.viewbox(this.left, this.top, this.width, this.height);
-    this.leftViewbox = this.left;
-    this.topViewbox = this.top;
+    this.draw = SVG('drawing').size(this.width, this.height);
+    
+    this.draw.viewbox(0, 0, this.width, this.height);
+    this.leftViewbox = 0;
+    this.topViewbox = 0;
     this.widthViewbox = this.width;
     this.heightViewbox = this.height;
   }
