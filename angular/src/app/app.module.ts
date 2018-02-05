@@ -70,7 +70,7 @@ import { RoomComponent } from './pages/room/room.component';
     MatSnackBarModule,
 
     RouterModule.forRoot([
-      { path: '', redirectTo: '/home', pathMatch: 'full' },
+      { path: '', redirectTo: '/room/1', pathMatch: 'full' },
       { path: 'home', component: HomeComponent },
       { path: 'room/:id', component: RoomComponent },
     ])

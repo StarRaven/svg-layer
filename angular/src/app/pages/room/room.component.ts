@@ -1,10 +1,11 @@
-import {Component, OnInit, ViewChild, HostListener, ElementRef, AfterViewInit} from '@angular/core';
-import {ActivatedRoute, Params} from '@angular/router';
-import {Subject, Observable, Observer} from 'rxjs';
+import { Component, OnInit, ViewChild, HostListener, ElementRef, AfterViewInit } from '@angular/core';
+import { ActivatedRoute, Params } from '@angular/router';
+import { Subject, Observable, Observer } from 'rxjs';
 import * as io from 'socket.io-client';
-import {SafeResourceUrl, DomSanitizer} from '@angular/platform-browser';
+import { SafeResourceUrl, DomSanitizer } from '@angular/platform-browser';
 
-import {RectData} from './rect-data.model';
+import { RectData } from './rect-data.model';
+import { PlotsData } from './plotpath-data.model';
 
 declare var SVG: any;
 declare var fitCurve: any;
@@ -21,8 +22,7 @@ export class RoomComponent implements OnInit {
   mouseDown: boolean;
   draw: any;
 
-  svgbox: string = 'small';
-  tool: string = 'rect';
+  tool = 'plotpath';
 
   width: number;
   height: number;
@@ -36,9 +36,9 @@ export class RoomComponent implements OnInit {
   fittedCurves: any[] = [];
   fittedCurvesData: any[] = [];
   fittedCurvesRemote: any[] = [];
+  plots: any[][]= [];
+  plotsRemote: any[] = [];
 
-  left: number;
-  top: number;
   leftViewbox: number;
   topViewbox: number;
 
@@ -46,55 +46,44 @@ export class RoomComponent implements OnInit {
   wrapperRef: ElementRef;
 
   constructor(private route: ActivatedRoute,
-              private sanitizer: DomSanitizer) {
+    private sanitizer: DomSanitizer) {
   }
 
-  //listen if the browser closed or refreshed
+  // listen if the browser closed or refreshed
   @HostListener('window:beforeunload', ['$event'])
   beforeUnloadHander(event) {
     this.socket.emit('room/leave');
   }
 
+  @HostListener('window:resize', ['$event'])
+  onResize(event) {
+    this.width = this.wrapperRef.nativeElement.clientWidth;
+    this.height = this.wrapperRef.nativeElement.clientHeight;
+    this.draw.size(this.width, this.height);
+  }
+
   transformX(x: number): number {
-    let ratiox = this.width / this.widthViewbox;
-    return ((x - this.left) / ratiox);
+    const ratiox = this.width / this.widthViewbox;
+    return (x / ratiox);
   }
 
   transformY(y: number): number {
-    let ratioy = this.height / this.heightViewbox;
-    return ((y - this.top) / ratioy);
+    const ratioy = this.height / this.heightViewbox;
+    return (y  / ratioy);
   }
-//getComputedStyle().width
+  // getComputedStyle().width
+  transformViewboxToSVGX(x: number): number {
+    const ratiox = this.width / this.widthViewbox;
+    return (x * ratiox);
+  }
+  transformViewboxToSVGY(y: number): number {
+    const ratioy = this.height / this.heightViewbox;
+    return (y * ratioy);
+  }
 
   resetMouse() {
     this.mouseDown = false;
   }
-
-  changeSize() {
-    switch (this.svgbox) {
-      case 'small': {
-        this.width = 400;
-        this.height = 300;
-        break;
-      }
-      case 'medium': {
-        this.width = 600;
-        this.height = 450;
-        break;
-      }
-      case 'big': {
-        this.width = 800;
-        this.height = 600;
-        break;
-      }
-    }
-    this.draw.size(this.width, this.height);
-    //this.draw.viewbox(this.left, this.top, this.width, this.height);
-
-    //reset mouse status
-    this.resetMouse();
-  }
-
 
   ngAfterViewInit() {
     const wrapperNE = this.wrapperRef.nativeElement;
@@ -102,16 +91,16 @@ export class RoomComponent implements OnInit {
     const mouseUp$ = Observable.fromEvent<MouseEvent>(wrapperNE, 'mouseup');
     const mouseMove$ = Observable.fromEvent<MouseEvent>(wrapperNE, 'mousemove').bufferTime(10);
 
-    //mouseDown
+    // mouseDown
     mouseDown$.subscribe(event => {
       this.mouseDown = true;
       switch (this.tool) {
         case 'rect':
-          this.initLocalRect(this.transformX(event.clientX), this.transformY(event.clientY));
+          this.initLocalRect(this.transformX(event.offsetX), this.transformY(event.offsetY));
           this.socket.emit('drawing', {
             event: 'mouseDown',
-            startx: this.transformX(event.clientX) - this.leftViewbox,
-            starty: this.transformY(event.clientY) - this.topViewbox,
+            startx: this.transformX(event.offsetX),
+            starty: this.transformY(event.offsetY),
             type: 'rect'
           });
           break;
@@ -122,40 +111,65 @@ export class RoomComponent implements OnInit {
             type: 'path'
           });
           break;
+        case 'plotpath':
+          this.initLocalPlotpath(this.transformX(event.offsetX), this.transformY(event.offsetY));
+          this.socket.emit('drawing', {
+            event: 'mouseDown',
+            startx: this.transformX(event.offsetX),
+            starty: this.transformY(event.offsetY),
+            type: 'plotpath'
+          });
+          break;
       }
     });
 
-    //mouseMove
+    // mouseMove
     mouseDown$
       .map(evt => mouseMove$.takeUntil(mouseUp$))
       .concatAll()
       .subscribe({
         next: (events) => {
-          for (let event of events) {
             switch (this.tool) {
               case 'rect':
-                var rect = this.rects[this.rects.length - 1];
-                var rectd = this.rectsData[this.rectsData.length - 1];
-                //console.log(event.offsetX);
-                this.rectsData[this.rectsData.length - 1].setNow(this.transformX(event.offsetX), this.transformY(event.offsetY));
-                rect.move(rectd.getLTx() + this.leftViewbox, rectd.getLTy() + this.topViewbox);
-                rect.size(rectd.getWidth(), rectd.getHeight());
-                this.socket.emit('drawing', {
-                  event: 'mouseMove',
-                  startx: rectd.getStartx(),
-                  starty: rectd.getStarty(),
-                  nowx: this.transformX(event.clientX) - this.leftViewbox,
-                  nowy: this.transformY(event.clientY) - this.topViewbox,
-                  type: 'rect'
-                });
+                for (const event of events) {
+                  const rect = this.rects[this.rects.length - 1];
+                  const rectd = this.rectsData[this.rectsData.length - 1];
+                  this.rectsData[this.rectsData.length - 1].setNow(this.transformX(event.offsetX), this.transformY(event.offsetY));
+                  rect.move(rectd.getLTx(), rectd.getLTy());
+                  rect.size(rectd.getWidth(), rectd.getHeight());
+                  this.socket.emit('drawing', {
+                    event: 'mouseMove',
+                    startx: rectd.getStartx(),
+                    starty: rectd.getStarty(),
+                    nowx: this.transformX(event.offsetX),
+                    nowy: this.transformY(event.offsetY),
+                    type: 'rect'
+                  });
+                }
                 break;
               case 'path':
-                this.rawLinesData[this.rawLinesData.length - 1].push([this.transformX(event.clientX) - this.leftViewbox, this.transformY(event.clientY) - this.topViewbox]);
-                this.updateLines();
+                for (const event of events) {
+                  this.rawLinesData[this.rawLinesData.length - 1].push([this.transformX(event.clientX) - this.leftViewbox,
+                    this.transformY(event.clientY) - this.topViewbox]);
+                  this.updateLines();
+                }
+                break;
+              case 'plotpath':
+                for (const event of events) {
+                  const plot = this.plots[this.plots.length - 1];
+                  const newplot = this.draw.circle(3).move(this.transformX(event.offsetX), this.transformY(event.offsetY)).attr({
+                    'fill': '#f06'
+                  });
+                  plot.push(newplot);
+                  this.socket.emit('drawing', {
+                    event: 'mouseMove',
+                    nowx: this.transformX(event.offsetX),
+                    nowy: this.transformY(event.offsetY),
+                    type: 'plotpath'
+                  });
+                }
                 break;
             }
-          }
-
         },
         error: (err) => {
           console.error('Error: ' + err);
@@ -176,33 +190,33 @@ export class RoomComponent implements OnInit {
   }
 
   fittedCurveDataToPathString(fittedLineData) {
-    var str = "";
+    let str = '';
     fittedLineData.map(function (bezier, i) {
-      if (i == 0) {
-        str += "M " + bezier[0][0] + " " + bezier[0][1];
+      if (i === 0) {
+        str += 'M ' + bezier[0][0] + ' ' + bezier[0][1];
       }
-      str += "C " + bezier[1][0] + " " + bezier[1][1] + ", " +
-        bezier[2][0] + " " + bezier[2][1] + ", " +
-        bezier[3][0] + " " + bezier[3][1] + " ";
+      str += 'C ' + bezier[1][0] + ' ' + bezier[1][1] + ', ' +
+        bezier[2][0] + ' ' + bezier[2][1] + ', ' +
+        bezier[3][0] + ' ' + bezier[3][1] + ' ';
     });
     return str;
   }
 
-  //updateLines(updateAllCurves) {
+  // updateLines(updateAllCurves) {
   updateLines() {
     this.rawLinesData.forEach((lineData, i) => {
-      var isLastItem = i === this.rawLinesData.length - 1;
-      //if (updateAllCurves || isLastItem) {
+      const isLastItem = i === this.rawLinesData.length - 1;
+      // if (updateAllCurves || isLastItem) {
       if (isLastItem) {
         if (this.fittedCurves.length <= i) {
-          var path = this.draw.path()
-          path.fill('none')
-          path.stroke({color: '#f06', width: 4, linecap: 'round', linejoin: 'round'})
+          const path = this.draw.path();
+          path.fill('none');
+          path.stroke({ color: '#f06', width: 4, linecap: 'round', linejoin: 'round' });
           this.fittedCurves.push(path);
         }
         if (lineData.length > 1) {
           this.fittedCurvesData[i] = fitCurve(lineData, 50);
-          var str = this.fittedCurveDataToPathString(this.fittedCurvesData[i])
+          const str = this.fittedCurveDataToPathString(this.fittedCurvesData[i]);
           this.fittedCurves[i].plot(str).dmove(this.leftViewbox, this.topViewbox);
           this.socket.emit('drawing', {
             event: 'mouseMove',
@@ -215,32 +229,41 @@ export class RoomComponent implements OnInit {
   }
 
   updateRemotePath(pathString) {
-    var i = this.fittedCurvesRemote.length - 1;
+    const i = this.fittedCurvesRemote.length - 1;
     this.fittedCurvesRemote[i].plot(pathString).dmove(this.leftViewbox, this.topViewbox);
   }
 
   updateRemoteRect(startx, starty, nowx, nowy) {
-    var rect = this.rectsRemote[this.rectsRemote.length - 1];
-    var rectd = new RectData(startx, starty, nowx, nowy);
+    const rect = this.rectsRemote[this.rectsRemote.length - 1];
+    const rectd = new RectData(startx, starty, nowx, nowy);
+
     console.log(rectd);
-    rect.move(rectd.getLTx() + this.leftViewbox, rectd.getLTy() + this.topViewbox);
+    rect.move(rectd.getLTx(), rectd.getLTy());
     rect.size(rectd.getWidth(), rectd.getHeight());
   }
 
+  initLocalPlotpath(startx, starty) {
+    const plot = this.draw.circle(3).move(startx, starty).attr({
+      'fill': '#f06'
+    });
+    this.plots.push([plot]);
+  }
+
   initLocalRect(startx, starty) {
-    var rect = this.draw.rect(0, 0).move(startx, starty).attr({
+    const rect = this.draw.rect(0, 0).move(startx, starty).attr({
       'fill': null
       , 'fill-opacity': 0
       , stroke: '#f06'
       , 'stroke-width': 3
     });
     this.rects.push(rect);
-    var rectd = new RectData(startx - this.leftViewbox, starty - this.topViewbox, startx - this.leftViewbox, starty - this.topViewbox);
+
+    const rectd = new RectData(startx, starty, startx, starty);
     this.rectsData.push(rectd);
   }
 
   initRemoteRect(startx, starty) {
-    var rect = this.draw.rect(0, 0).move(startx + this.leftViewbox, starty + this.topViewbox).attr({
+    const rect = this.draw.rect(0, 0).move(startx, starty).attr({
       'fill': null
       , 'fill-opacity': 0
       , stroke: '#FFF250'
@@ -250,9 +273,9 @@ export class RoomComponent implements OnInit {
   }
 
   initRemotePath() {
-    var path = this.draw.path()
-    path.fill('none')
-    path.stroke({color: '#FFF250', width: 4, linecap: 'round', linejoin: 'round'})
+    const path = this.draw.path();
+    path.fill('none');
+    path.stroke({ color: '#FFF250', width: 4, linecap: 'round', linejoin: 'round' });
     this.fittedCurvesRemote.push(path);
   }
 
@@ -273,7 +296,7 @@ export class RoomComponent implements OnInit {
         this.updateRemotePath(message.data);
         break;
       case 'rect':
-        this.updateRemoteRect(message.startx, message.starty, message.nowx, message.nowy)
+        this.updateRemoteRect(message.startx, message.starty, message.nowx, message.nowy);
         break;
     }
   }
@@ -310,23 +333,22 @@ export class RoomComponent implements OnInit {
   initComponent() {
     this.width = this.wrapperRef.nativeElement.scrollWidth;
     this.height = this.wrapperRef.nativeElement.scrollHeight;
-    this.left = this.wrapperRef.nativeElement.offsetLeft;
-    this.top = this.wrapperRef.nativeElement.offsetTop;
 
     this.draw = SVG('drawing').size(this.width, this.height);
-    
-    this.draw.viewbox(0, 0, this.width, this.height);
+    this.draw.viewbox(0, 0, 400, 300);
+    this.draw.attr('preserveAspectRatio', 'none');
+
     this.leftViewbox = 0;
     this.topViewbox = 0;
-    this.widthViewbox = this.width;
-    this.heightViewbox = this.height;
+    this.widthViewbox = 400;
+    this.heightViewbox = 300;
   }
 
   ngOnInit() {
-    this.socket = io("http://localhost:4201");
+    this.socket = io('http://localhost:4201');
     this.route.params.subscribe((params) => {
       this.roomId = params['id'];
-      this.socket.emit('room/enter', {room: this.roomId});
+      this.socket.emit('room/enter', { room: this.roomId });
     });
 
     this.initComponent();

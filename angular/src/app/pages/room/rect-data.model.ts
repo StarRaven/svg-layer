@@ -25,11 +25,11 @@ export class RectData {
   }
 
   public getLTx(): number {
-    return (this.startx < this.nowx ? this.startx : this.nowx)
+    return (this.startx < this.nowx ? this.startx : this.nowx);
   }
 
   public getLTy(): number {
-    return (this.starty < this.nowy ? this.starty : this.nowy)
+    return (this.starty < this.nowy ? this.starty : this.nowy);
   }
 
   public getWidth(): number {
