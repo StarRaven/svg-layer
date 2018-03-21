@@ -85,6 +85,68 @@ export class RoomComponent implements OnInit {
     this.mouseDown = false;
   }
 
+  setEraseListener(newplot: any) {
+    var self = this;
+    newplot.on('mouseover', function(e) {
+      if ((self.tool == 'erase')&&(self.mouseDown)) {
+        this.off('mouseover');
+        this.remove();
+      }
+    })
+  }
+
+  setRemoteEraseListener(newplot: any) {
+    
+  }
+
+  fixGap(plota: any, plotb: any): any[] {
+    // at the start of the line
+    if (!plota)
+      return [plotb];
+
+    const plots = [];
+
+    // Translate coordinates
+    var x1 = plota.x();
+    var y1 = plota.y();
+    var x2 = plotb.x();
+    var y2 = plotb.y();
+    // Define differences and error check
+    var dx = Math.abs(x2 - x1);
+    var dy = Math.abs(y2 - y1);
+    var sx = (x1 < x2) ? 1 : -1;
+    var sy = (y1 < y2) ? 1 : -1;
+    var err = dx - dy;
+    var fhx = x1-x2;
+    var fhy = y1-y2
+    // Main loop
+    while (true) {
+      if ((x1-x2)*fhx<=0)
+        break;
+      if ((y1-y2)*fhy<=0)
+        break;
+      var e2 = err << 1;
+      if (e2 > -dy) {
+        err -= dy;
+        x1 += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y1 += sy;
+      }
+      // Set coordinates
+      
+      const newplot = this.draw.circle(3).move(x1, y1).attr({
+        'fill': '#f06'
+      });
+      this.setEraseListener(newplot);
+    
+      plots.push(newplot);
+    }
+    plots.push(plotb);
+    return plots;
+  }
+
   ngAfterViewInit() {
     const wrapperNE = this.wrapperRef.nativeElement;
     const mouseDown$ = Observable.fromEvent<MouseEvent>(wrapperNE, 'mousedown');
@@ -156,17 +218,22 @@ export class RoomComponent implements OnInit {
                 break;
               case 'plotpath':
                 for (const event of events) {
-                  const plot = this.plots[this.plots.length - 1];
                   const newplot = this.draw.circle(3).move(this.transformX(event.offsetX), this.transformY(event.offsetY)).attr({
                     'fill': '#f06'
                   });
-                  plot.push(newplot);
-                  this.socket.emit('drawing', {
-                    event: 'mouseMove',
-                    nowx: this.transformX(event.offsetX),
-                    nowy: this.transformY(event.offsetY),
-                    type: 'plotpath'
-                  });
+                  this.setEraseListener(newplot);
+                  const lastplot = this.plots[this.plots.length - 1];
+                  const newplots = this.fixGap(lastplot[lastplot.length-1],newplot);
+                  this.plots.push(newplots);
+                  //console.log(this.plots);
+                  for (let newplot of newplots) {
+                    this.socket.emit('drawing', {
+                      event: 'mouseMove',
+                      nowx: newplot.x(),
+                      nowy: newplot.y(),
+                      type: 'plotpath'
+                    });
+                  }
                 }
                 break;
             }
@@ -242,10 +309,19 @@ export class RoomComponent implements OnInit {
     rect.size(rectd.getWidth(), rectd.getHeight());
   }
 
+  updateRemotePlotPath(nowx, nowy) {
+    const plot = this.draw.circle(3).move(nowx, nowy).attr({
+      'fill': '#FFF250'
+    });
+    this.setRemoteEraseListener(plot);
+    this.plotsRemote.push(plot);
+  }
+
   initLocalPlotpath(startx, starty) {
     const plot = this.draw.circle(3).move(startx, starty).attr({
       'fill': '#f06'
     });
+    this.setEraseListener(plot);
     this.plots.push([plot]);
   }
 
@@ -279,6 +355,14 @@ export class RoomComponent implements OnInit {
     this.fittedCurvesRemote.push(path);
   }
 
+  initRemotePlotPath(startx, starty) {
+    const plot = this.draw.circle(3).move(startx, starty).attr({
+      'fill': '#FFF250'
+    });
+    this.setRemoteEraseListener(plot);
+    this.plotsRemote.push(plot);
+  }
+
   handleRemoteDown(message) {
     switch (message.type) {
       case 'path':
@@ -286,6 +370,9 @@ export class RoomComponent implements OnInit {
         break;
       case 'rect':
         this.initRemoteRect(message.startx, message.starty);
+        break;
+      case 'plotpath':
+        this.initRemotePlotPath(message.startx, message.starty);
         break;
     }
   }
@@ -298,6 +385,9 @@ export class RoomComponent implements OnInit {
       case 'rect':
         this.updateRemoteRect(message.startx, message.starty, message.nowx, message.nowy);
         break;
+      case 'plotpath':
+        this.updateRemotePlotPath(message.nowx, message.nowy);
+        break;
     }
   }
 
@@ -306,6 +396,8 @@ export class RoomComponent implements OnInit {
       case 'path':
         break;
       case 'rect':
+        break;
+      case 'plotpath':
         break;
     }
   }
